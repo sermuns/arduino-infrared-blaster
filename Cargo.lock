@@ -35,9 +35,6 @@ name = "arduino-infrared-blaster"
 version = "0.1.0"
 dependencies = [
  "arduino-hal",
- "embedded-hal 1.0.0",
- "infrared",
- "nb 1.1.0",
  "panic-halt",
  "ufmt",
 ]
@@ -241,21 +238,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fugit"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e639847d312d9a82d2e75b0edcc1e934efcc64e6cb7aa94f0b1fbec0bc231d6"
-dependencies = [
- "gcd",
-]
-
-[[package]]
-name = "gcd"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
-
-[[package]]
 name = "globset"
 version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -410,15 +392,6 @@ name = "inflections"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a257582fdcde896fd96463bf2d40eefea0580021c0712a0e2b028b60b47a837a"
-
-[[package]]
-name = "infrared"
-version = "0.14.2"
-source = "git+https://github.com/jkristell/infrared?branch=embedded-hal1_0#e2c06df1b87cce6be3e09f4874ec24ce8cdca97e"
-dependencies = [
- "embedded-hal 1.0.0",
- "fugit",
-]
 
 [[package]]
 name = "itertools"
