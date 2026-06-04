@@ -9,36 +9,46 @@ use arduino_hal::{
 use panic_halt as _;
 use ufmt::uwriteln;
 
-const TIME_BETWEEN_EDGE_NS: u32 = 10_u32.pow(9) / 38_000;
+const HALF_PERIOD_NS: u32 = 10_u32.pow(9) / (38_000 * 2);
 
 const UNIT_BURST_LENGTH_US: u32 = 600;
-const ZERO_BURST_LENGHT_US: u32 = UNIT_BURST_LENGTH_US;
+const ZERO_BURST_LENGTH_US: u32 = UNIT_BURST_LENGTH_US;
 const ONE_BURST_LENGTH_US: u32 = 2 * UNIT_BURST_LENGTH_US;
-const START_BURST_LENGTH_US: u32 = 4 * 600;
+const START_BURST_LENGTH_US: u32 = 4 * UNIT_BURST_LENGTH_US;
+
+fn send_space(pin: &mut Pin<Output, impl PinOps>) {
+    pin.set_low();
+    delay_us(ZERO_BURST_LENGTH_US);
+}
 
 fn send_one(pin: &mut Pin<Output, impl PinOps>) {
-    const NUM_ITERATIONS: u32 = ONE_BURST_LENGTH_US * 1000 / TIME_BETWEEN_EDGE_NS;
+    const NUM_ITERATIONS: u32 = ONE_BURST_LENGTH_US * 1000 / HALF_PERIOD_NS;
 
     for _ in 0..NUM_ITERATIONS {
         pin.toggle();
-        delay_ns(TIME_BETWEEN_EDGE_NS);
+        delay_ns(HALF_PERIOD_NS);
     }
 
-    pin.set_low();
+    send_space(pin);
 }
 
 fn send_zero(pin: &mut Pin<Output, impl PinOps>) {
-    pin.set_low();
-    delay_us(ZERO_BURST_LENGHT_US);
-}
-use send_zero as send_space;
-
-fn send_start(pin: &mut Pin<Output, impl PinOps>) {
-    const NUM_ITERATIONS: u32 = START_BURST_LENGTH_US * 1000 / TIME_BETWEEN_EDGE_NS;
+    const NUM_ITERATIONS: u32 = ZERO_BURST_LENGTH_US * 1000 / HALF_PERIOD_NS;
 
     for _ in 0..NUM_ITERATIONS {
         pin.toggle();
-        delay_ns(TIME_BETWEEN_EDGE_NS);
+        delay_ns(HALF_PERIOD_NS);
+    }
+
+    send_space(pin);
+}
+
+fn send_start(pin: &mut Pin<Output, impl PinOps>) {
+    const NUM_ITERATIONS: u32 = START_BURST_LENGTH_US * 1000 / HALF_PERIOD_NS;
+
+    for _ in 0..NUM_ITERATIONS {
+        pin.toggle();
+        delay_ns(HALF_PERIOD_NS);
     }
 
     pin.set_low();
@@ -56,7 +66,6 @@ fn send_sirc_command(pin: &mut Pin<Output, impl PinOps>, address: u8, command: u
         } else {
             send_zero(pin);
         }
-        send_space(pin);
     }
 
     for i in 0..5 {
@@ -66,7 +75,6 @@ fn send_sirc_command(pin: &mut Pin<Output, impl PinOps>, address: u8, command: u
         } else {
             send_zero(pin);
         }
-        send_space(pin);
     }
 }
 
