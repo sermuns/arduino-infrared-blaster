@@ -1,48 +1,73 @@
 #![no_std]
 #![no_main]
 
-use arduino_hal::{delay_ms, delay_us, prelude::*};
+use arduino_hal::{
+    delay_ms, delay_ns, delay_us,
+    port::{Pin, PinOps, mode::Output},
+    prelude::*,
+};
 use panic_halt as _;
 use ufmt::uwriteln;
 
-const TIME_UNIT_US: u32 = 562;
+const TIME_BETWEEN_EDGE_NS: u32 = 10_u32.pow(9) / 38_000;
 
-fn mark(tc2: &arduino_hal::pac::TC2, us: u32) {
-    tc2.tccr2a().modify(|_, w| w.com2b().match_toggle());
-    delay_us(us);
-}
+const UNIT_BURST_LENGTH_US: u32 = 600;
+const ZERO_BURST_LENGHT_US: u32 = UNIT_BURST_LENGTH_US;
+const ONE_BURST_LENGTH_US: u32 = 2 * UNIT_BURST_LENGTH_US;
+const START_BURST_LENGTH_US: u32 = 4 * 600;
 
-fn space(tc2: &arduino_hal::pac::TC2, us: u32) {
-    tc2.tccr2a().modify(|_, w| w.com2b().disconnected());
-    delay_us(us);
-}
+fn send_one(pin: &mut Pin<Output, impl PinOps>) {
+    const NUM_ITERATIONS: u32 = ONE_BURST_LENGTH_US * 1000 / TIME_BETWEEN_EDGE_NS;
 
-fn send_bit(tc2: &arduino_hal::pac::TC2, bit: bool) {
-    mark(tc2, TIME_UNIT_US);
-
-    if bit {
-        space(tc2, TIME_UNIT_US * 3);
-    } else {
-        space(tc2, TIME_UNIT_US);
+    for _ in 0..NUM_ITERATIONS {
+        pin.toggle();
+        delay_ns(TIME_BETWEEN_EDGE_NS);
     }
+
+    pin.set_low();
 }
 
-fn send_u32(tc2: &arduino_hal::pac::TC2, mut v: u32) {
-    for _ in 0..32 {
-        let bit = (v & 1) != 0;
-        send_bit(tc2, bit);
-        v >>= 1;
+fn send_zero(pin: &mut Pin<Output, impl PinOps>) {
+    pin.set_low();
+    delay_us(ZERO_BURST_LENGHT_US);
+}
+use send_zero as send_space;
+
+fn send_start(pin: &mut Pin<Output, impl PinOps>) {
+    const NUM_ITERATIONS: u32 = START_BURST_LENGTH_US * 1000 / TIME_BETWEEN_EDGE_NS;
+
+    for _ in 0..NUM_ITERATIONS {
+        pin.toggle();
+        delay_ns(TIME_BETWEEN_EDGE_NS);
     }
+
+    pin.set_low();
 }
 
-fn send_nec_frame(tc2: &arduino_hal::pac::TC2, addr: u32, cmd: u32) {
-    mark(tc2, 9000);
-    space(tc2, 4500);
+fn send_sirc_command(pin: &mut Pin<Output, impl PinOps>, address: u8, command: u8) {
+    send_start(pin);
 
-    send_u32(tc2, addr);
-    send_u32(tc2, cmd);
+    send_space(pin);
 
-    mark(tc2, 562);
+    for i in 0..7 {
+        let bit = (command >> i) & 1;
+        if bit == 1 {
+            send_one(pin);
+        } else {
+            send_zero(pin);
+        }
+        send_space(pin);
+    }
+
+    for i in 0..5 {
+        let bit = (address >> i) & 1;
+        if bit == 1 {
+            send_one(pin);
+        } else {
+            send_zero(pin);
+        }
+        send_space(pin);
+    }
 }
 
 #[arduino_hal::entry]
@@ -51,25 +76,13 @@ fn main() -> ! {
     let pins = arduino_hal::pins!(dp);
     let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
 
-    let tc2 = dp.TC2;
-    let mut _d3 = pins.d3.into_output();
-
-    tc2.tccr2a().write(|w| w.wgm2().ctc());
-    tc2.tccr2b().write(|w| w.cs2().direct());
-    // (try to) set 38 KHz, (do we need unsafe here???)
-    tc2.ocr2a().write(|w| {
-        // SAFETY:
-        // it was revealed to me in a dream
-        unsafe { w.bits(210) }
-    });
+    let mut d3 = pins.d3.into_output();
 
     loop {
-        uwriteln!(serial, "sending poweroff!").unwrap_infallible();
-        for _ in 0..3 {
-            send_nec_frame(&tc2, 0x86FF0000, 0x1BE40000);
-            // send_nec_frame(&tc2, 0x02bd0000, 0x53ac0000);
-            delay_ms(40);
-        }
-        delay_ms(200);
+        uwriteln!(serial, "sending command").unwrap_infallible();
+
+        send_sirc_command(&mut d3, 1, 19);
+
+        delay_ms(45);
     }
 }
