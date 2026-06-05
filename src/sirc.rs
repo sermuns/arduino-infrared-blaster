@@ -1,73 +1,49 @@
-use arduino_hal::{
-    delay_ns, delay_us,
-    port::{Pin, PinOps, mode::Output},
-};
+use arduino_hal::{delay_ms, delay_us, pac::TC2};
 
-const HALF_PERIOD_NS: u32 = 10_u32.pow(9) / (38_000 * 2);
+use crate::{disable_carrier, enable_carrier};
 
-const UNIT_BURST_LENGTH_US: u32 = 600;
-const ZERO_BURST_LENGTH_US: u32 = UNIT_BURST_LENGTH_US;
-const ONE_BURST_LENGTH_US: u32 = 2 * UNIT_BURST_LENGTH_US;
-const START_BURST_LENGTH_US: u32 = 4 * UNIT_BURST_LENGTH_US;
+fn send_one(tc2: &TC2) {
+    enable_carrier(tc2);
+    delay_us(1200);
 
-pub fn send_space(pin: &mut Pin<Output, impl PinOps>) {
-    pin.set_low();
-    delay_us(ZERO_BURST_LENGTH_US);
+    disable_carrier(tc2);
+    delay_us(600);
 }
 
-pub fn send_one(pin: &mut Pin<Output, impl PinOps>) {
-    const NUM_ITERATIONS: u32 = ONE_BURST_LENGTH_US * 1000 / HALF_PERIOD_NS;
+fn send_zero(tc2: &TC2) {
+    enable_carrier(tc2);
+    delay_us(600);
 
-    for _ in 0..NUM_ITERATIONS {
-        pin.toggle();
-        delay_ns(HALF_PERIOD_NS);
-    }
-
-    send_space(pin);
+    disable_carrier(tc2);
+    delay_us(600);
 }
 
-pub fn send_zero(pin: &mut Pin<Output, impl PinOps>) {
-    const NUM_ITERATIONS: u32 = ZERO_BURST_LENGTH_US * 1000 / HALF_PERIOD_NS;
+fn send_start_burst(tc2: &TC2) {
+    enable_carrier(tc2);
+    delay_us(2400);
 
-    for _ in 0..NUM_ITERATIONS {
-        pin.toggle();
-        delay_ns(HALF_PERIOD_NS);
-    }
-
-    send_space(pin);
+    disable_carrier(tc2);
+    delay_us(600);
 }
 
-pub fn send_start(pin: &mut Pin<Output, impl PinOps>) {
-    const NUM_ITERATIONS: u32 = START_BURST_LENGTH_US * 1000 / HALF_PERIOD_NS;
+pub fn send_message(tc2: &TC2, address: u8, command: u8) {
+    send_start_burst(tc2);
 
-    for _ in 0..NUM_ITERATIONS {
-        pin.toggle();
-        delay_ns(HALF_PERIOD_NS);
-    }
-
-    pin.set_low();
-}
-
-pub fn send_sirc_command(pin: &mut Pin<Output, impl PinOps>, address: u8, command: u8) {
-    send_start(pin);
-
-    send_space(pin);
-
-    for i in 0..7 {
-        let bit = (command >> i) & 1;
-        if bit == 0 {
-            send_zero(pin);
+    // command
+    for i in (0..7).rev() {
+        if (command >> i) & 1 != 0 {
+            send_one(tc2);
         } else {
-            send_one(pin);
+            send_zero(tc2);
         }
     }
 
-    for i in 0..5 {
-        let bit = (address >> i) & 1;
-        if bit == 0 {
-            send_zero(pin);
+    // address
+    for i in (0..5).rev() {
+        if (address >> i) & 1 != 0 {
+            send_one(tc2);
         } else {
-            send_one(pin);
+            send_zero(tc2);
         }
     }
 }

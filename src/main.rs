@@ -1,11 +1,16 @@
 #![no_std]
 #![no_main]
 
-use arduino_hal::{delay_ms, delay_us, pac::TC2, prelude::*};
+use arduino_hal::{delay_ms, pac::TC2, prelude::*};
 use panic_halt as _;
 use ufmt::uwriteln;
 
-// mod sirc;
+mod sirc;
+// mod necext;
+
+const CLOCK_FREQ_KHZ: u32 = 16_000;
+const CARRIER_FREQUENCY_KHZ: u32 = 40;
+const OCR2A_VALUE: u8 = (CLOCK_FREQ_KHZ / (2 * CARRIER_FREQUENCY_KHZ) - 1) as u8;
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -28,8 +33,7 @@ fn main() -> ! {
         w
     });
     tc2.ocr2a().write(|w| {
-        // 16 MHz / (1 * 2 * (OCR2A + 1 ) ) ~= 38 kHz
-        w.set(209);
+        w.set(OCR2A_VALUE);
         w
     });
 
@@ -37,80 +41,23 @@ fn main() -> ! {
         // uwriteln!(serial, "on").unwrap_infallible();
         // enable_carrier(&tc2);
         // delay_ms(500);
+        //
         // uwriteln!(serial, "off").unwrap_infallible();
         // disable_carrier(&tc2);
+        // delay_ms(500);
 
+        uwriteln!(serial, "ocr2a: {}", OCR2A_VALUE).unwrap_infallible();
         uwriteln!(serial, "send message").unwrap_infallible();
-        send_message(&tc2, 0x86FF, 0x1B);
-        delay_ms(1000);
+        // necext::send_message(&tc2, 0x86FF, 0x1B);
+        sirc::send_message(&tc2, 0x01, 0x15);
+        delay_ms(45); // FIXME: wrong
     }
 }
 
-fn enable_carrier(tc2: &TC2) {
-    tc2.ocr2b().write(|w| w.set(209 / 3));
+pub fn enable_carrier(tc2: &TC2) {
+    tc2.ocr2b().write(|w| w.set(OCR2A_VALUE / 3));
 }
 
-fn disable_carrier(tc2: &TC2) {
-    tc2.ocr2b().write(|w| w.set(209));
-}
-
-fn send_one(tc2: &TC2) {
-    enable_carrier(tc2);
-    delay_us(560);
-    disable_carrier(tc2);
-    delay_us(2250 - 560);
-}
-
-fn send_zero(tc2: &TC2) {
-    enable_carrier(tc2);
-    delay_us(560);
-    disable_carrier(tc2);
-    delay_us(1120 - 560);
-}
-
-fn send_agc_burst(tc2: &TC2) {
-    enable_carrier(tc2);
-    delay_us(9000);
-    disable_carrier(tc2);
-
-    delay_us(4500);
-}
-
-fn send_final_burst(tc2: &TC2) {
-    enable_carrier(tc2);
-    delay_us(560);
-    disable_carrier(tc2); // needed?
-}
-
-fn send_message(tc2: &TC2, address: u16, command: u8) {
-    send_agc_burst(tc2);
-
-    // (extended) address
-    for i in (0..16).rev() {
-        if (address >> i) & 1 != 0 {
-            send_one(tc2);
-        } else {
-            send_zero(tc2);
-        }
-    }
-
-    // command
-    for i in (0..8).rev() {
-        if (command >> i) & 1 != 0 {
-            send_one(tc2);
-        } else {
-            send_zero(tc2);
-        }
-    }
-
-    // inverted command
-    for i in (0..8).rev() {
-        if (command >> i) & 1 != 0 {
-            send_zero(tc2);
-        } else {
-            send_one(tc2);
-        }
-    }
-
-    send_final_burst(tc2);
+pub fn disable_carrier(tc2: &TC2) {
+    tc2.ocr2b().write(|w| w.set(OCR2A_VALUE));
 }
