@@ -1,4 +1,4 @@
-use arduino_hal::{delay_ms, delay_us, pac::TC2};
+use arduino_hal::{delay_us, pac::TC2};
 
 use crate::{disable_carrier, enable_carrier};
 
@@ -30,7 +30,7 @@ pub fn send_message(tc2: &TC2, address: u8, command: u8) {
     send_start_burst(tc2);
 
     // command
-    for i in (0..7).rev() {
+    for i in 0..7 {
         if (command >> i) & 1 != 0 {
             send_one(tc2);
         } else {
@@ -39,7 +39,7 @@ pub fn send_message(tc2: &TC2, address: u8, command: u8) {
     }
 
     // address
-    for i in (0..5).rev() {
+    for i in 0..5 {
         if (address >> i) & 1 != 0 {
             send_one(tc2);
         } else {

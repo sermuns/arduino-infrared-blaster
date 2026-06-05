@@ -50,12 +50,12 @@ fn main() -> ! {
         uwriteln!(serial, "send message").unwrap_infallible();
         // necext::send_message(&tc2, 0x86FF, 0x1B);
         sirc::send_message(&tc2, 0x01, 0x15);
-        delay_ms(45); // FIXME: wrong
+        delay_ms(24); // FIXME: wrong
     }
 }
 
 pub fn enable_carrier(tc2: &TC2) {
-    tc2.ocr2b().write(|w| w.set(OCR2A_VALUE / 3));
+    tc2.ocr2b().write(|w| w.set(OCR2A_VALUE / 2));
 }
 
 pub fn disable_carrier(tc2: &TC2) {
